@@ -14,6 +14,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  user
+  assistant
+}
 
 model User {
   id        String   @id @default(uuid())
@@ -29,8 +33,27 @@ model Post {
   title     String
   content   String?
   published Boolean  @default(false)
-  author    User     @relation(fields: [authorId], references: [id],onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id         String    @id @default(uuid())
+  name       String    @unique
+  sandboxUrl String?
+  messages   Message[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  role      Role
+  content   String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
