@@ -1,15 +1,18 @@
-// src/inngest/functions.ts
 import { inngest } from "./client";
+import { createAgent, anthropic } from "@inngest/agent-kit";
 
 export const processTask = inngest.createFunction(
     { id: "process-task", triggers: { event: "app/task.created" } },
-    async ({ event, step }) => {
-        const result = await step.run("handle-task", async () => {
-            return { processed: true, id: event.data.id };
+    async ({ event }) => {
+        const agent = createAgent({
+            name: "Code writer",
+            system: "You are an expert TypeScript programmer.",
+            model: anthropic({
+                model: "claude-haiku-4-5",
+                defaultParameters: { max_tokens: 4096 },
+            }),
         });
-
-        await step.sleep("pause", "1s");
-
-        return { message: `Task ${event.data.id} complete ${event.data.text}`, result };
+        const result = await agent.run(event.data.text);
+        return { result };
     }
 );

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTRPC } from '@/trpc/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 
 type Message = { role: string; content: string };
@@ -12,6 +13,7 @@ export default function Home() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const invoke = useMutation(trpc.invoke.mutationOptions({}));
+  const [value, setvalue] = useState("");
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
@@ -81,7 +83,10 @@ export default function Home() {
           <h1 className="text-xl font-bold">Vibe</h1>
         </div>
         <div className='p-4 max-w-7xl mx-auto'>
-          <Button onClick={() => invoke.mutate({ text: "John" })}>
+
+          <Input value={value} onChange={(e) => setvalue(e.target.value)} placeholder="Enter your name" />
+
+          <Button onClick={() => invoke.mutate({ text: value })}>
             Invoke BG Job
           </Button>
 
