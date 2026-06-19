@@ -17,5 +17,11 @@ RUN npx --yes shadcn@2.6.3 add --all --yes
 
 RUN npm install tw-animate-css
 
+# Ensure clsx and tailwind-merge are installed (required by lib/utils.ts)
+RUN npm install clsx tailwind-merge
+
 # Move the Nextjs app to the home directory and remove the nextjs-app directory
 RUN mv /home/user/nextjs-app/* /home/user/ && rm -rf /home/user/nextjs-app
+
+# Ensure lib/utils.ts exists (required by shadcn components)
+RUN mkdir -p /home/user/lib && echo 'import { type ClassValue, clsx } from "clsx"\nimport { twMerge } from "tailwind-merge"\n\nexport function cn(...inputs: ClassValue[]) {\n  return twMerge(clsx(inputs))\n}\n' > /home/user/lib/utils.ts
