@@ -1,12 +1,18 @@
 import { inngest } from "./client";
-import { createAgent, createNetwork, anthropic, createTool } from "@inngest/agent-kit";
+import { createAgent, createNetwork, anthropic, createTool , type Tool} from "@inngest/agent-kit";
 import { Sandbox } from "e2b";
+import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { getLastAssistantMessage, getSandbox } from "./utils";
 import { PROMPT } from "@/prompt";
 
-export const processTask = inngest.createFunction(
-    { id: "process-task", triggers: [{ event: "app/task.created" }] },
+interface AgentState {
+    files: {[path: string]: string};
+    summary: string;
+}
+
+export const codeAgentfunction = inngest.createFunction(
+    { id: "code-agent", triggers: [{ event: "code-agent/run" }] },
     async ({ event, step }) => {
         const sandboxId = await step.run("get-sandbox-id", async () => {
             const sandbox = await Sandbox.create("yosaad1000/vibe-nextjs-test3", {
@@ -15,7 +21,7 @@ export const processTask = inngest.createFunction(
             return sandbox.sandboxId;
         });
 
-        const agent = createAgent({
+        const agent = createAgent<AgentState>({
             name: "Code writer",
             system: PROMPT,
             model: anthropic({
@@ -54,7 +60,7 @@ export const processTask = inngest.createFunction(
                             content: z.string(),
                         })),
                     }),
-                    handler: async ({ files }, { step, network }) => {
+                    handler: async ({ files }, { step, network }:Tool.Options<AgentState>) => {
                         console.log(`[createOrUpdateFiles] received ${files?.length ?? 0} files:`, files?.map(f => f.path));
                         const newFiles = await step?.run("createOrUpdateFiles", async () => {
                             try {
@@ -120,7 +126,7 @@ export const processTask = inngest.createFunction(
             }
         });
 
-        const network = createNetwork({
+        const network = createNetwork<AgentState>({
             name: "coding-agent-network",
             agents: [agent],
             maxIter: 15,
@@ -141,6 +147,35 @@ export const processTask = inngest.createFunction(
             const sandbox = await getSandbox(sandboxId);
             const host = sandbox.getHost(3000);
             return `https://${host}`;
+        });
+
+        const isError = !result.state.data.summary || Object.keys(result.state.data.files || {}).length === 0;
+
+        await step.run("save-summary", async () => {
+
+            if (isError) {
+                return await prisma.message.create({
+                    data: {
+                        content:"An error occurred, but no summary was provided.",
+                        role: "ASSISTANT",
+                        type: "ERROR",
+                    },
+                });
+            }
+            return await prisma.message.create({
+                data: {
+                    content: result.state.data.summary,
+                    role: "ASSISTANT",
+                    type: "RESULT",
+                    fragment: {
+                        create: {
+                            sandboxUrl: sandboxUrl,
+                            title: "Fragment",
+                            files: result.state.data.files,
+                        }
+                    }
+                },
+            })
         });
 
         return {
