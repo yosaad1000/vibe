@@ -1,5 +1,5 @@
 import { inngest } from "./client";
-import { createAgent, createNetwork, anthropic, createTool , type Tool} from "@inngest/agent-kit";
+import { createAgent, createNetwork, anthropic, createTool, type Tool } from "@inngest/agent-kit";
 import { Sandbox } from "e2b";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { getLastAssistantMessage, getSandbox } from "./utils";
 import { PROMPT } from "@/prompt";
 
 interface AgentState {
-    files: {[path: string]: string};
+    files: { [path: string]: string };
     summary: string;
 }
 
@@ -60,7 +60,7 @@ export const codeAgentfunction = inngest.createFunction(
                             content: z.string(),
                         })),
                     }),
-                    handler: async ({ files }, { step, network }:Tool.Options<AgentState>) => {
+                    handler: async ({ files }, { step, network }: Tool.Options<AgentState>) => {
                         console.log(`[createOrUpdateFiles] received ${files?.length ?? 0} files:`, files?.map(f => f.path));
                         const newFiles = await step?.run("createOrUpdateFiles", async () => {
                             try {
@@ -97,7 +97,7 @@ export const codeAgentfunction = inngest.createFunction(
                         return await step?.run("readFiles", async () => {
                             try {
                                 const sandbox = await getSandbox(sandboxId);
-                                const contents = [];
+                                const contents: { path: string; content: string }[] = [];
                                 for (const file of files) {
                                     const content = await sandbox.files.read(file)
                                     contents.push({ path: file, content });
@@ -156,7 +156,8 @@ export const codeAgentfunction = inngest.createFunction(
             if (isError) {
                 return await prisma.message.create({
                     data: {
-                        content:"An error occurred, but no summary was provided.",
+                        projectId: event.data.projectId,
+                        content: "An error occurred, but no summary was provided.",
                         role: "ASSISTANT",
                         type: "ERROR",
                     },
@@ -164,6 +165,7 @@ export const codeAgentfunction = inngest.createFunction(
             }
             return await prisma.message.create({
                 data: {
+                    projectId: event.data.projectId,
                     content: result.state.data.summary,
                     role: "ASSISTANT",
                     type: "RESULT",
