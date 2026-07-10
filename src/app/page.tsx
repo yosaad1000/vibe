@@ -6,15 +6,20 @@ import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 
 export default function Home() {
+  const router = useRouter();
   const [value, setvalue] = useState("");
   const trpc = useTRPC();
   const createProject = useMutation(trpc.projects.create.mutationOptions({
     onError: (error) => {
       toast.error(error.message)
-    }
+    },
+    onSuccess:(data) => {
+      router.push(`/projects/${data.id}`);
+    },
 
   }));
 
