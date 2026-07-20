@@ -34,7 +34,7 @@ export const ProjectsRouter = createTRPCRouter({
     create: baseProcedure
         .input(z.object({
             content: z.string().min(1, { message: "Content cannot be empty" })
-                .max(10000, { message: "Content cannot exceed 100 characters" })
+                .max(10000, { message: "Content too Big" })
         }))
         .mutation(async ({ input }) => {
             const createdproject = await prisma.project.create({
