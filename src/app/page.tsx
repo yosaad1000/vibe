@@ -1,62 +1,41 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useTRPC } from '@/trpc/client';
-import { useMutation } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from "sonner";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 
+import { useTRPC } from "@/trpc/client";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
-export default function Home() {
+const Page = () => {
   const router = useRouter();
-  const [value, setvalue] = useState("");
+  const [value, setValue] = useState("");
+
   const trpc = useTRPC();
   const createProject = useMutation(trpc.projects.create.mutationOptions({
     onError: (error) => {
-      toast.error(error.message)
+      toast.error(error.message);
     },
-    onSuccess:(data) => {
+    onSuccess: (data) => {
       router.push(`/projects/${data.id}`);
     },
-
   }));
 
-
-
-
-  // Fetch all projects for the sidebar
-
-  // Sync messages and sandboxUrl when project loads
-
-
-  // Auto-scroll to bottom on new messages
-
-  // Send a message
-
-
-
-
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-
-      <div className="p-4 border-b">
-        <h1 className="text-xl font-bold">Vibe</h1>
-      </div>
-      <div className='p-4 max-w-7xl mx-auto'>
-
-        <Input value={value} onChange={(e) => setvalue(e.target.value)} />
-
-        <Button
-          disabled={createProject.isPending}
-          onClick={() => createProject.mutate({ content: value })}>
-          Invoke BG Job
+   <div className="h-screen w-screen flex items-center justify-center">
+      <div className="max-w-7xl mx-auto flex items-center flex-col gap-y-4 jusify-center">
+        <Input value={value} onChange={(e) => setValue(e.target.value)} />
+        <Button 
+          disabled={createProject.isPending} 
+          onClick={() => createProject.mutate({ content: value })}
+        >
+          Submit
         </Button>
-
-
       </div>
-    </div>
+   </div>
   );
-}
+};
+ 
+export default Page;

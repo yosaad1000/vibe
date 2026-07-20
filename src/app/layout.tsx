@@ -5,6 +5,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TRPCReactProvider } from "@/trpc/client";
 
+import "./globals.css";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -25,7 +27,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-   return (
+  return (
     <TRPCReactProvider>
       <html lang="en" suppressHydrationWarning>
         <body
@@ -44,4 +46,4 @@ export default function RootLayout({
       </html>
     </TRPCReactProvider>
   );
-}
+};
