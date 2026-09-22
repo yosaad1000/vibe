@@ -24,3 +24,23 @@ export function getLastAssistantMessage(result: AgentResult): string | undefined
     return undefined;
 }
 
+export const lastAssistantTextMessageContent = getLastAssistantMessage;
+
+export function parseAgentOutput(output: unknown): string {
+    if (typeof output === "string") return output;
+    if (Array.isArray(output)) {
+        return output
+            .map((item) => {
+                if (typeof item === "string") return item;
+                if (item?.type === "text") {
+                    if (typeof item.content === "string") return item.content;
+                    if (typeof item.text === "string") return item.text;
+                }
+                return "";
+            })
+            .join("");
+    }
+    return "";
+}
+
+
