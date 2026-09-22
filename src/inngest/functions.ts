@@ -1,10 +1,11 @@
 import { inngest } from "./client";
-import { createAgent, createNetwork, anthropic, createTool, type Tool } from "@inngest/agent-kit";
+import { createAgent, createNetwork, anthropic, createTool, type Tool , type Message , createState} from "@inngest/agent-kit";
 import { Sandbox } from "e2b";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { getLastAssistantMessage, getSandbox } from "./utils";
-import { PROMPT } from "@/prompt";
+import { getSandbox, lastAssistantTextMessageContent, getLastAssistantMessage, parseAgentOutput } from "./utils";
+import { FRAGMENT_TITLE_PROMPT , PROMPT , RESPONSE_PROMPT } from "@/prompt";
+import { SANDBOX_TIMEOUT } from "./types";
 
 interface AgentState {
     files: { [path: string]: string };
@@ -15,11 +16,45 @@ export const codeAgentfunction = inngest.createFunction(
     { id: "code-agent", triggers: [{ event: "code-agent/run" }] },
     async ({ event, step }) => {
         const sandboxId = await step.run("get-sandbox-id", async () => {
-            const sandbox = await Sandbox.create("yosaad1000/vibe-nextjs-test3", {
-                timeoutMs: 1000 * 60 * 10, // 10 minutes
-            });
+            const sandbox = await Sandbox.create("yosaad1000/vibe-nextjs-test3");
+            await sandbox.setTimeout(SANDBOX_TIMEOUT);
             return sandbox.sandboxId;
         });
+
+
+        const previousMessages = await step.run("get-previous-messages", async () => {
+        const formattedMessages: Message[] = [];
+
+        const messages = await prisma.message.findMany({
+            where: {
+            projectId: event.data.projectId,
+            },
+            orderBy: {
+            createdAt: "desc",
+            },
+            take: 5,
+        });
+
+        for (const message of messages) {
+            formattedMessages.push({
+            type: "text",
+            role: message.role === "ASSISTANT" ? "assistant" : "user",
+            content: message.content,
+            })
+        }
+
+        return formattedMessages.reverse();
+        });
+
+        const state = createState<AgentState>(
+        {
+            summary: "",
+            files: {},
+        },
+        {
+            messages: previousMessages,
+        },
+        );
 
         const agent = createAgent<AgentState>({
             name: "Code writer",
@@ -28,6 +63,7 @@ export const codeAgentfunction = inngest.createFunction(
                 model: "claude-haiku-4-5",
                 defaultParameters: { max_tokens: 16000 },
             }),
+
             tools: [
                 createTool({
                     name: "terminal",
@@ -114,7 +150,7 @@ export const codeAgentfunction = inngest.createFunction(
                 onResponse: async ({ result, network }) => {
                     const iter = network?.state.results.length ?? 0;
                     console.log(`[agent iter ${iter}] output:`, JSON.stringify(result.output, null, 2));
-                    const lastAssistantmessagetext = getLastAssistantMessage(result);
+                    const lastAssistantmessagetext = lastAssistantTextMessageContent(result);
                     if (lastAssistantmessagetext && network) {
                         if (lastAssistantmessagetext.includes("<task_summary>")) {
                             network.state.data.summary = lastAssistantmessagetext;
@@ -130,6 +166,7 @@ export const codeAgentfunction = inngest.createFunction(
             name: "coding-agent-network",
             agents: [agent],
             maxIter: 15,
+            defaultState: state,
             defaultRouter: ({ network }) => {
                 const iter = network.state.results.length;
                 const lastResult = network.state.results.at(-1);
@@ -140,16 +177,42 @@ export const codeAgentfunction = inngest.createFunction(
                 return agent;
             },
         });
+ const result = await network.run(event.data.value, { state });
 
-        const result = await network.run(event.data.text);
+    const fragmentTitleGenerator = createAgent({
+      name: "fragment-title-generator",
+      description: "A fragment title generator",
+      system: FRAGMENT_TITLE_PROMPT,
+      model: anthropic({
+                model: "claude-haiku-4-5",
+                defaultParameters: { max_tokens: 16000 },
+            }),
+    })
 
+    const responseGenerator = createAgent({
+      name: "response-generator",
+      description: "A response generator",
+      system: RESPONSE_PROMPT,
+model: anthropic({
+                model: "claude-haiku-4-5",
+                defaultParameters: { max_tokens: 16000 },
+            }),
+    });
+
+    const { 
+      output: fragmentTitleOuput
+    } = await fragmentTitleGenerator.run(result.state.data.summary);
+    const { 
+      output: responseOutput
+    } = await responseGenerator.run(result.state.data.summary);
+
+    const isError = !result.state.data.summary || Object.keys(result.state.data.files || {}).length === 0;
         const sandboxUrl = await step.run("get-sandbox-url", async () => {
             const sandbox = await getSandbox(sandboxId);
             const host = sandbox.getHost(3000);
             return `https://${host}`;
         });
 
-        const isError = !result.state.data.summary || Object.keys(result.state.data.files || {}).length === 0;
 
         await step.run("save-summary", async () => {
 
@@ -166,13 +229,13 @@ export const codeAgentfunction = inngest.createFunction(
             return await prisma.message.create({
                 data: {
                     projectId: event.data.projectId,
-                    content: result.state.data.summary,
+                    content: parseAgentOutput(responseOutput),
                     role: "ASSISTANT",
                     type: "RESULT",
                     fragment: {
                         create: {
                             sandboxUrl: sandboxUrl,
-                            title: "Fragment",
+                            title: parseAgentOutput(fragmentTitleOuput),
                             files: result.state.data.files,
                         }
                     }
