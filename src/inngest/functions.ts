@@ -15,6 +15,10 @@ interface AgentState {
 export const codeAgentfunction = inngest.createFunction(
     { id: "code-agent", triggers: [{ event: "code-agent/run" }] },
     async ({ event, step }) => {
+        if (!process.env.E2B_API_KEY) {
+            throw new Error("E2B_API_KEY is required to create a sandbox");
+        }
+
         const sandboxId = await step.run("get-sandbox-id", async () => {
             const sandbox = await Sandbox.create("yosaad1000/vibe-nextjs-test3");
             await sandbox.setTimeout(SANDBOX_TIMEOUT);
@@ -177,7 +181,8 @@ export const codeAgentfunction = inngest.createFunction(
                 return agent;
             },
         });
- const result = await network.run(event.data.value, { state });
+ const promptText = event.data.text || event.data.value || "";
+ const result = await network.run(promptText, { state });
 
     const fragmentTitleGenerator = createAgent({
       name: "fragment-title-generator",

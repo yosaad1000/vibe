@@ -1,65 +1,90 @@
-import { createTRPCRouter, baseProcedure } from "@/trpc/init";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
 import { generateSlug } from "random-word-slugs";
-import { inngest } from "@/inngest/client";
-import { TRPCError } from "@trpc/server";
 
+import { prisma } from "@/lib/db";
+import { TRPCError } from "@trpc/server";
+import { inngest } from "@/inngest/client";
+import { consumeCredits } from "@/lib/usage";
+import { protectedProcedure, createTRPCRouter } from "@/trpc/init";
 
 export const ProjectsRouter = createTRPCRouter({
-    getOne: baseProcedure
+  getOne: protectedProcedure
     .input(z.object({
-            id: z.string().min(1, { message: "ProjectId is required" })
-        }))
-    .query(async ({ input }) => {
-        const project = await prisma.project.findUnique({
-            where: {
-                id: input.id
-            },
-        });
-        if(!project) {
-            throw new TRPCError({
-                code: "NOT_FOUND",
-                message: "Project not found"
-            });
-        }
-        return project;
-    }),
-    getMany: baseProcedure.query(async () => {
-        const projects = await prisma.project.findMany({
-            orderBy: { updatedAt: "desc" },
-        });
-        return projects;
-    }),
-    create: baseProcedure
-        .input(z.object({
-            content: z.string().min(1, { message: "Content cannot be empty" })
-                .max(10000, { message: "Content too Big" })
-        }))
-        .mutation(async ({ input }) => {
-            const createdproject = await prisma.project.create({
-                data: {
-                    name: generateSlug(2, { format: "kebab" }),
-                    messages: {
-                        create: {
-                            content: input.content,
-                            role: "USER",
-                            type: "RESULT",
-                        },
-                    },
-                },
-            });
-            await inngest.send(
-                {
-                    name: "code-agent/run",
-                    data:
-                    {
-                        text: input.content,
-                        projectId: createdproject.id
-                    }
-                }
-            )
-            return createdproject;
-        }),
+      id: z.string().min(1, { message: "Id is required" }),
+    }))
+    .query(async ({ input, ctx }) => {
+      const existingProject = await prisma.project.findUnique({
+        where: {
+          id: input.id,
+          userId: ctx.auth.userId,
+        },
+      });
 
+      if (!existingProject) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+      }
+
+      return existingProject;
+    }),
+  getMany: protectedProcedure
+    .query(async ({ ctx }) => {
+      const projects = await prisma.project.findMany({
+        where: {
+          userId: ctx.auth.userId,
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      });
+
+      return projects;
+    }),
+  create: protectedProcedure
+    .input(
+      z.object({
+        value: z.string()
+          .min(1, { message: "Value is required" })
+          .max(10000, { message: "Value is too long" })
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        await consumeCredits();
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Something went wrong" });
+        } else {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "You have run out of credits"
+          });
+        }
+      }
+
+      const createdProject = await prisma.project.create({
+        data: {
+          userId: ctx.auth.userId,
+          name: generateSlug(2, {
+            format: "kebab",
+          }),
+          messages: {
+            create: {
+              content: input.value,
+              role: "USER",
+              type: "RESULT",
+            }
+          }
+        }
+      });
+
+      await inngest.send({
+        name: "code-agent/run",
+        data: {
+          value: input.value,
+          projectId: createdProject.id,
+        },
+      });
+
+      return createdProject;
+    }),
 });

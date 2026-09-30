@@ -1,7 +1,7 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/sign-in', '/sign-up'];
+const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/api/inngest'];
 
 function isPublicRoute(pathname: string) {
   return (

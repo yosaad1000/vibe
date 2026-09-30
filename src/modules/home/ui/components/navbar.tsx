@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
 import { useScroll } from "@/hooks/use-scroll";
@@ -24,7 +24,7 @@ export const Navbar = () => {
           <Image src="/logo.svg" alt="Vibe" width={24} height={24} />
           <span className="font-semibold text-lg">Vibe</span>
         </Link>
-        <SignedOut>
+        <Show when="signed-out">
           <div className="flex gap-2">
             <SignUpButton>
               <Button variant="outline" size="sm">
@@ -37,10 +37,10 @@ export const Navbar = () => {
               </Button>
             </SignInButton>
           </div>
-        </SignedOut>
-        <SignedIn>
+        </Show>
+        <Show when="signed-in">
           <UserControl showName />
-        </SignedIn>
+        </Show>
       </div>
     </nav>
   );
